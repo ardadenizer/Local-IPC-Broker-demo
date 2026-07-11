@@ -38,4 +38,6 @@ private:
     std::unordered_map<int, std::deque<std::string>> outboundFrames_;
     std::unordered_map<int, std::unordered_set<std::string>> clientSubscriptions_;
     std::unordered_map<std::string, std::unordered_set<int>> topicSubscribers_;
+
+    static constexpr std::size_t MaxQueueDepthPerClient = 5;
 };

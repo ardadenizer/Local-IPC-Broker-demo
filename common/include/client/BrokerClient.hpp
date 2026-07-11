@@ -3,7 +3,9 @@
 #include "client/IBrokerClient.hpp"
 #include "ipc/UnixSocketClient.hpp"
 
+#include <optional>
 #include <string>
+#include <string_view>
 
 namespace client
 {
@@ -19,6 +21,12 @@ namespace client
         [[nodiscard]]
         bool publish(
             const messaging::Message& message) override;
+
+        [[nodiscard]]
+        bool subscribe(std::string_view topic, std::string_view clientId) override;
+
+        [[nodiscard]]
+        std::optional<messaging::Message> receive(std::string& error) override;
 
         void disconnect() noexcept override;
 

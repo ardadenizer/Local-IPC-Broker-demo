@@ -155,6 +155,56 @@ bool UnixSocketClient::sendMessage(std::string_view message)
     return sendAll(socketFd_, "\n");
 }
 
+bool UnixSocketClient::receiveMessage(std::string& messageLine, std::string& error)
+{
+    messageLine.clear();
+
+    if (!isConnected())
+    {
+        error = "client is not connected";
+        return false;
+    }
+
+    while (true)
+    {
+        const std::size_t newlinePos = readBuffer_.find('\n');
+        if (newlinePos != std::string::npos)
+        {
+            messageLine = readBuffer_.substr(0, newlinePos);
+            readBuffer_.erase(0, newlinePos + 1);
+
+            if (!messageLine.empty() && messageLine.back() == '\r')
+            {
+                messageLine.pop_back();
+            }
+
+            return true;
+        }
+
+        char buffer[512];
+        const ssize_t bytesRead = ::recv(socketFd_, buffer, sizeof(buffer), 0);
+        if (bytesRead > 0)
+        {
+            readBuffer_.append(buffer, static_cast<std::size_t>(bytesRead));
+            continue;
+        }
+
+        if (bytesRead == 0)
+        {
+            error = "socket closed by peer";
+            return false;
+        }
+
+        if (errno == EINTR)
+        {
+            continue;
+        }
+
+        error = std::string{"recv failed: "} + std::strerror(errno);
+        return false;
+    }
+}
+
 void UnixSocketClient::disconnect() noexcept
 {
     if (socketFd_ != -1)
@@ -162,6 +212,8 @@ void UnixSocketClient::disconnect() noexcept
         ::close(socketFd_);
         socketFd_ = -1;
     }
+
+    readBuffer_.clear();
 }
 
 bool UnixSocketClient::isConnected() const noexcept

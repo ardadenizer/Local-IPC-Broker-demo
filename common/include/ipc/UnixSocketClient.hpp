@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <string_view>
 
 namespace ipc
@@ -22,6 +23,9 @@ namespace ipc
         [[nodiscard]]
         bool sendMessage(std::string_view message);
 
+        [[nodiscard]]
+        bool receiveMessage(std::string& messageLine, std::string& error);
+
         void disconnect() noexcept;
 
         [[nodiscard]]
@@ -29,6 +33,7 @@ namespace ipc
 
     private:
         int socketFd_{-1};
+        std::string readBuffer_{};
     };
 
 } // namespace ipc

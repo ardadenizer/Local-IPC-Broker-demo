@@ -405,9 +405,30 @@ void BrokerRuntime::enqueueMessage(int clientFd, const messaging::Message& messa
         return;
     }
 
+    auto& queue = outIt->second;
+    if (queue.size() >= MaxQueueDepthPerClient)
+    {
+        if (message.qos == messaging::QoS::AtMostOnce)
+        {
+            queue.pop_front();
+            std::cout << "[broker] queue full qos=0, dropped oldest frame client="
+                      << clientLabel(clientFd)
+                      << " topic=" << message.topic
+                      << " max_depth=" << MaxQueueDepthPerClient << '\n';
+        }
+        else
+        {
+            std::cerr << "[broker] queue full qos=1, rejected new frame client="
+                      << clientLabel(clientFd)
+                      << " topic=" << message.topic
+                      << " max_depth=" << MaxQueueDepthPerClient << '\n';
+            return;
+        }
+    }
+
     std::string frame = messaging::MessageCodec::serialize(message);
     frame.push_back('\n');
-    outIt->second.push_back(std::move(frame));
+    queue.push_back(std::move(frame));
 }
 
 std::string BrokerRuntime::formatConnectedClients() const
