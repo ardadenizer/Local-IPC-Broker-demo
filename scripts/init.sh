@@ -7,8 +7,27 @@ BIN_DIR="${BUILD_DIR}/bin"
 LOG_DIR="${ROOT_DIR}/logs"
 SOCKET_PATH="/tmp/ipc_broker.sock"
 CLOUD_MODE="${DEMO_CLOUD_MODE:-unavailable}"
+RUN_ID="${DEMO_RUN_ID:-$(date +%Y%m%d-%H%M%S)}"
 
 mkdir -p "${LOG_DIR}"
+
+write_log_header() {
+  local file_path="$1"
+  : > "${file_path}"
+  echo "[run:${RUN_ID}] service_log_start cloud_mode=${CLOUD_MODE}" >> "${file_path}"
+}
+
+kill_stale_processes() {
+  local stale_pids
+  stale_pids="$(pgrep -f "${BIN_DIR}/broker|${BIN_DIR}/analytics|${BIN_DIR}/capture|${BIN_DIR}/uploader|scripts/mock_cloud_server.py" || true)"
+
+  if [[ -n "${stale_pids}" ]]; then
+    echo "[init] found stale demo processes, stopping them first..."
+    echo "${stale_pids}" | xargs -r kill 2>/dev/null || true
+    sleep 0.2
+    echo "${stale_pids}" | xargs -r kill -9 2>/dev/null || true
+  fi
+}
 
 cleanup() {
   echo "[init] stopping services..."
@@ -22,6 +41,9 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
+kill_stale_processes
+export DEMO_RUN_ID="${RUN_ID}"
+
 echo "[init] configuring/building..."
 cmake -S "${ROOT_DIR}" -B "${BUILD_DIR}"
 cmake --build "${BUILD_DIR}" -j
@@ -32,6 +54,7 @@ if [[ ! -x "${BIN_DIR}/broker" || ! -x "${BIN_DIR}/analytics" || ! -x "${BIN_DIR
 fi
 
 echo "[init] cloud mode: ${CLOUD_MODE}"
+echo "[init] run id: ${RUN_ID}"
 if [[ "${CLOUD_MODE}" == "happy" ]]; then
   if ! command -v python3 >/dev/null 2>&1; then
     echo "[init] python3 is required for happy cloud mode"
@@ -39,13 +62,15 @@ if [[ "${CLOUD_MODE}" == "happy" ]]; then
   fi
 
   echo "[init] starting mock cloud server..."
-  python3 "${ROOT_DIR}/scripts/mock_cloud_server.py" > "${LOG_DIR}/mock_cloud.log" 2>&1 &
+  write_log_header "${LOG_DIR}/mock_cloud.log"
+  python3 "${ROOT_DIR}/scripts/mock_cloud_server.py" >> "${LOG_DIR}/mock_cloud.log" 2>&1 &
   MOCK_CLOUD_PID=$!
   sleep 0.2
 fi
 
 echo "[init] starting broker..."
-"${BIN_DIR}/broker" > "${LOG_DIR}/broker.log" 2>&1 &
+write_log_header "${LOG_DIR}/broker.log"
+"${BIN_DIR}/broker" >> "${LOG_DIR}/broker.log" 2>&1 &
 BROKER_PID=$!
 
 echo "[init] waiting for broker socket..."
@@ -63,7 +88,8 @@ fi
 
 if [[ -x "${BIN_DIR}/uploader" ]]; then
   echo "[init] starting uploader service..."
-  "${BIN_DIR}/uploader" > "${LOG_DIR}/uploader.log" 2>&1 &
+  write_log_header "${LOG_DIR}/uploader.log"
+  "${BIN_DIR}/uploader" >> "${LOG_DIR}/uploader.log" 2>&1 &
   UPLOADER_PID=$!
 else
   echo "[init] uploader binary not found in ${BIN_DIR}, skipping uploader"
@@ -73,11 +99,13 @@ fi
 sleep 0.2
 
 echo "[init] starting analytics..."
-"${BIN_DIR}/analytics" > "${LOG_DIR}/analytics.log" 2>&1 &
+write_log_header "${LOG_DIR}/analytics.log"
+"${BIN_DIR}/analytics" >> "${LOG_DIR}/analytics.log" 2>&1 &
 ANALYTICS_PID=$!
 
 echo "[init] starting capture..."
-"${BIN_DIR}/capture" > "${LOG_DIR}/capture.log" 2>&1 &
+write_log_header "${LOG_DIR}/capture.log"
+"${BIN_DIR}/capture" >> "${LOG_DIR}/capture.log" 2>&1 &
 CAPTURE_PID=$!
 
 echo "[init] services started:"

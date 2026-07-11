@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"container/list"
 	"net/http"
 	"net"
 	"os"
@@ -27,7 +28,52 @@ const (
 	defaultSocketPath = "/tmp/ipc_broker.sock"
 	defaultTopic      = "analytics.alerts"
 	defaultMockCloud  = "http://127.0.0.1:8081/mock-cloud/upload"
+	processedCacheSize = 256
 )
+
+type processedMessages struct {
+	limit int
+	queue *list.List
+	set   map[string]*list.Element
+}
+
+func newProcessedMessages(limit int) *processedMessages {
+	return &processedMessages{
+		limit: limit,
+		queue: list.New(),
+		set:   make(map[string]*list.Element),
+	}
+}
+
+func (p *processedMessages) has(id string) bool {
+	_, ok := p.set[id]
+	return ok
+}
+
+func (p *processedMessages) add(id string) {
+	if id == "" {
+		return
+	}
+
+	if element, exists := p.set[id]; exists {
+		p.queue.MoveToBack(element)
+		return
+	}
+
+	element := p.queue.PushBack(id)
+	p.set[id] = element
+
+	if p.queue.Len() > p.limit {
+		front := p.queue.Front()
+		if front == nil {
+			return
+		}
+
+		oldestID, _ := front.Value.(string)
+		delete(p.set, oldestID)
+		p.queue.Remove(front)
+	}
+}
 
 func getEnvOrDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
@@ -103,7 +149,7 @@ func sendAck(conn net.Conn, msg Message) error {
 	return sendFrame(conn, ack)
 }
 
-func processIncoming(conn net.Conn, msg Message, cloudClient *http.Client, cloudURL string) {
+func processIncoming(conn net.Conn, msg Message, cloudClient *http.Client, cloudURL string, processed *processedMessages) {
 	switch msg.Type {
 	case "ack":
 		fmt.Printf("[uploader-go] ack received id=%s topic=%s from=%s\n", msg.MessageID, msg.Topic, msg.ClientID)
@@ -114,11 +160,22 @@ func processIncoming(conn net.Conn, msg Message, cloudClient *http.Client, cloud
 			return
 		}
 
+		if processed.has(msg.MessageID) {
+			fmt.Printf("[uploader-go] duplicate delivery ignored id=%s\n", msg.MessageID)
+			if err := sendAck(conn, msg); err != nil {
+				fmt.Printf("[uploader-go] failed to send duplicate ack id=%s err=%v\n", msg.MessageID, err)
+				return
+			}
+			fmt.Printf("[uploader-go] duplicate ack sent id=%s\n", msg.MessageID)
+			return
+		}
+
 		if err := sendToMockCloud(cloudClient, cloudURL, msg.Payload); err != nil {
 			fmt.Printf("[uploader-go] cloud upload failed id=%s err=%v\n", msg.MessageID, err)
 			return
 		}
 
+		processed.add(msg.MessageID)
 		fmt.Printf("[uploader-go] cloud upload success id=%s\n", msg.MessageID)
 		if err := sendAck(conn, msg); err != nil {
 			fmt.Printf("[uploader-go] failed to send ack id=%s err=%v\n", msg.MessageID, err)
@@ -139,6 +196,7 @@ func runSession(conn net.Conn, cloudURL string) error {
 	scanner := bufio.NewScanner(conn)
 	scanner.Buffer(make([]byte, 1024), 1024*1024)
 	cloudClient := &http.Client{Timeout: 3 * time.Second}
+	processed := newProcessedMessages(processedCacheSize)
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -150,7 +208,7 @@ func runSession(conn net.Conn, cloudURL string) error {
 			continue
 		}
 
-		processIncoming(conn, msg, cloudClient, cloudURL)
+		processIncoming(conn, msg, cloudClient, cloudURL, processed)
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -163,8 +221,9 @@ func runSession(conn net.Conn, cloudURL string) error {
 func main() {
 	socketPath := getEnvOrDefault("BROKER_SOCKET", defaultSocketPath)
 	cloudURL := getEnvOrDefault("MOCK_CLOUD_URL", defaultMockCloud)
+	runID := getEnvOrDefault("DEMO_RUN_ID", "unknown")
 
-	fmt.Printf("[uploader-go] starting with socket=%s cloud=%s\n", socketPath, cloudURL)
+	fmt.Printf("[uploader-go] starting run_id=%s socket=%s cloud=%s\n", runID, socketPath, cloudURL)
 
 	for {
 		conn, err := net.Dial("unix", socketPath)

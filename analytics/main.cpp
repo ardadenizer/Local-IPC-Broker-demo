@@ -25,7 +25,7 @@ int main()
     std::signal(SIGINT, handleSignal);
     std::signal(SIGTERM, handleSignal);
 
-    std::cout << "[analytics] is starting stream processor...\n";
+    std::cout << "[analytics] is starting...\n";
 
     client::BrokerClient brokerClient{std::string{ipc::BrokerSocketPath}};
 

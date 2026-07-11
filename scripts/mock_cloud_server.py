@@ -5,6 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HOST = "127.0.0.1"
 PORT = 8081
 PATH = "/mock-cloud/upload"
+SEEN_PAYLOAD_KEYS = set()
 
 
 class MockCloudHandler(BaseHTTPRequestHandler):
@@ -26,7 +27,10 @@ class MockCloudHandler(BaseHTTPRequestHandler):
             self.wfile.write(b"invalid json")
             return
 
-        print(f"[mock-cloud] upload received: {json.dumps(body, separators=(',', ':'))}", flush=True)
+        payload_key = json.dumps(body, sort_keys=True, separators=(",", ":"))
+        if payload_key not in SEEN_PAYLOAD_KEYS:
+            SEEN_PAYLOAD_KEYS.add(payload_key)
+            print(f"[mock-cloud] upload received: {payload_key}", flush=True)
 
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
