@@ -42,6 +42,8 @@ func sendFrame(conn net.Conn, msg Message) error {
 		return fmt.Errorf("marshal message: %w", err)
 	}
 
+	fmt.Printf("[uploader-go] outbound frame: %s\n", string(encoded))
+
 	if _, err := conn.Write(append(encoded, '\n')); err != nil {
 		return fmt.Errorf("write frame: %w", err)
 	}
@@ -140,6 +142,7 @@ func runSession(conn net.Conn, cloudURL string) error {
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
+		fmt.Printf("[uploader-go] inbound frame: %s\n", string(line))
 
 		var msg Message
 		if err := json.Unmarshal(line, &msg); err != nil {

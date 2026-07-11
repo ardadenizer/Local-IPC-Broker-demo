@@ -46,14 +46,6 @@ if [[ ! -S "${SOCKET_PATH}" ]]; then
   exit 1
 fi
 
-echo "[init] starting analytics..."
-"${BIN_DIR}/analytics" > "${LOG_DIR}/analytics.log" 2>&1 &
-ANALYTICS_PID=$!
-
-echo "[init] starting capture..."
-"${BIN_DIR}/capture" > "${LOG_DIR}/capture.log" 2>&1 &
-CAPTURE_PID=$!
-
 if [[ -x "${BIN_DIR}/uploader" ]]; then
   echo "[init] starting uploader service..."
   "${BIN_DIR}/uploader" > "${LOG_DIR}/uploader.log" 2>&1 &
@@ -62,13 +54,27 @@ else
   echo "[init] uploader binary not found in ${BIN_DIR}, skipping uploader"
 fi
 
+# Give long-running subscribers a short head start before publishers fire.
+sleep 0.2
+
+echo "[init] starting analytics..."
+"${BIN_DIR}/analytics" > "${LOG_DIR}/analytics.log" 2>&1 &
+ANALYTICS_PID=$!
+
+echo "[init] starting capture..."
+"${BIN_DIR}/capture" > "${LOG_DIR}/capture.log" 2>&1 &
+CAPTURE_PID=$!
+
 echo "[init] services started:"
 echo "  broker pid=${BROKER_PID}"
-echo "  analytics pid=${ANALYTICS_PID}"
-echo "  capture pid=${CAPTURE_PID}"
 if [[ -n "${UPLOADER_PID:-}" ]]; then
   echo "  uploader pid=${UPLOADER_PID}"
 fi
+echo "  analytics pid=${ANALYTICS_PID}"
+echo "  capture pid=${CAPTURE_PID}"
 echo "[init] logs at ${LOG_DIR}"
 
 wait "${CAPTURE_PID}" "${ANALYTICS_PID}"
+
+# Give broker/uploader a brief window to flush in-flight deliveries and ACKs.
+sleep 0.5

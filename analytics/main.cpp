@@ -32,6 +32,10 @@ int main()
         }
     };
 
+    std::cout << "[analytics] outbound publish frame: "
+              << messaging::MessageCodec::serialize(analyticsEvent)
+              << '\n';
+
     if (!brokerClient.publish(analyticsEvent))
     {
         std::cerr << "[analytics] publish failed\n";

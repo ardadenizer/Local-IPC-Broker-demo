@@ -32,6 +32,10 @@ int main()
         }
     };
 
+    std::cout << "[capture] outbound publish frame: "
+              << messaging::MessageCodec::serialize(motionEvent)
+              << '\n';
+
     if (!brokerClient.publish(motionEvent))
     {
         std::cerr << "[capture] publish failed\n";
