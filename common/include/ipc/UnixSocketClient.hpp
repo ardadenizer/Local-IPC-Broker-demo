@@ -1,0 +1,34 @@
+#pragma once
+
+#include <string_view>
+
+namespace ipc
+{
+    class UnixSocketClient
+    {
+    public:
+        UnixSocketClient() = default;
+        ~UnixSocketClient();
+
+        UnixSocketClient(const UnixSocketClient&) = delete;
+        UnixSocketClient& operator=(const UnixSocketClient&) = delete;
+
+        UnixSocketClient(UnixSocketClient&& other) noexcept;
+        UnixSocketClient& operator=(UnixSocketClient&& other) noexcept;
+
+        [[nodiscard]]
+        bool connectTo(std::string_view socketPath);
+
+        [[nodiscard]]
+        bool sendMessage(std::string_view message);
+
+        void disconnect() noexcept;
+
+        [[nodiscard]]
+        bool isConnected() const noexcept;
+
+    private:
+        int socketFd_{-1};
+    };
+
+} // namespace ipc

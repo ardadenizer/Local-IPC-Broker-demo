@@ -28,11 +28,22 @@ if [[ ! -x "${BIN_DIR}/broker" || ! -x "${BIN_DIR}/analytics" || ! -x "${BIN_DIR
   exit 1
 fi
 
-rm -f "${SOCKET_PATH}"
-
 echo "[init] starting broker..."
 "${BIN_DIR}/broker" > "${LOG_DIR}/broker.log" 2>&1 &
 BROKER_PID=$!
+
+echo "[init] waiting for broker socket..."
+for _ in {1..50}; do
+  if [[ -S "${SOCKET_PATH}" ]]; then
+    break
+  fi
+  sleep 0.1
+done
+
+if [[ ! -S "${SOCKET_PATH}" ]]; then
+  echo "[init] broker did not become ready in time"
+  exit 1
+fi
 
 echo "[init] starting analytics..."
 "${BIN_DIR}/analytics" > "${LOG_DIR}/analytics.log" 2>&1 &
@@ -48,4 +59,4 @@ echo "  analytics pid=${ANALYTICS_PID}"
 echo "  capture pid=${CAPTURE_PID}"
 echo "[init] logs at ${LOG_DIR}"
 
-wait "${BROKER_PID}" "${ANALYTICS_PID}" "${CAPTURE_PID}"
+wait "${CAPTURE_PID}"
