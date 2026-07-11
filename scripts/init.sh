@@ -11,6 +11,7 @@ mkdir -p "${LOG_DIR}"
 
 cleanup() {
   echo "[init] stopping services..."
+  [[ -n "${UPLOADER_PID:-}" ]] && kill "${UPLOADER_PID}" 2>/dev/null || true
   [[ -n "${CAPTURE_PID:-}" ]] && kill "${CAPTURE_PID}" 2>/dev/null || true
   [[ -n "${ANALYTICS_PID:-}" ]] && kill "${ANALYTICS_PID}" 2>/dev/null || true
   [[ -n "${BROKER_PID:-}" ]] && kill "${BROKER_PID}" 2>/dev/null || true
@@ -53,10 +54,21 @@ echo "[init] starting capture..."
 "${BIN_DIR}/capture" > "${LOG_DIR}/capture.log" 2>&1 &
 CAPTURE_PID=$!
 
+if [[ -x "${BIN_DIR}/uploader" ]]; then
+  echo "[init] starting uploader service..."
+  "${BIN_DIR}/uploader" > "${LOG_DIR}/uploader.log" 2>&1 &
+  UPLOADER_PID=$!
+else
+  echo "[init] uploader binary not found in ${BIN_DIR}, skipping uploader"
+fi
+
 echo "[init] services started:"
 echo "  broker pid=${BROKER_PID}"
 echo "  analytics pid=${ANALYTICS_PID}"
 echo "  capture pid=${CAPTURE_PID}"
+if [[ -n "${UPLOADER_PID:-}" ]]; then
+  echo "  uploader pid=${UPLOADER_PID}"
+fi
 echo "[init] logs at ${LOG_DIR}"
 
 wait "${CAPTURE_PID}" "${ANALYTICS_PID}"

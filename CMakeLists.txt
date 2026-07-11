@@ -65,3 +65,25 @@ add_ipc_app(capture ${BROKER_ROOT}/capture/src/main.cpp
 add_ipc_app(analytics ${BROKER_ROOT}/analytics/main.cpp)
 
 target_compile_features(messaging_common PUBLIC cxx_std_20)
+
+find_program(GO_EXECUTABLE go)
+
+if(GO_EXECUTABLE)
+    set(GO_UPLOADER_BINARY ${CMAKE_BINARY_DIR}/bin/uploader)
+
+    add_custom_command(
+        OUTPUT ${GO_UPLOADER_BINARY}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/bin
+        COMMAND ${GO_EXECUTABLE} build -o ${GO_UPLOADER_BINARY} .
+        WORKING_DIRECTORY ${BROKER_ROOT}/uploader
+        DEPENDS
+            ${BROKER_ROOT}/uploader/main.go
+            ${BROKER_ROOT}/uploader/go.mod
+        COMMENT "Building Go uploader service"
+        VERBATIM
+    )
+
+    add_custom_target(uploader ALL DEPENDS ${GO_UPLOADER_BINARY})
+else()
+    message(WARNING "Go toolchain not found. Target uploader will be skipped.")
+endif()
