@@ -92,5 +92,14 @@ To build and run all services with one script for the demo, use:
 
 ```./scripts/init.sh```
 
+Cloud mode switch:
+- Unavailable cloud mode (default):
+    ```./scripts/init.sh```
+- Happy-path mode with local mock cloud (uploader uploads succeed and ACKs are emitted):
+    ```DEMO_CLOUD_MODE=happy ./scripts/init.sh```
+
+Mock cloud logs are written to:
+- `logs/mock_cloud.log`
+
 Stop the services:
 ``` CRTL + C ```

@@ -6,11 +6,13 @@ BUILD_DIR="${ROOT_DIR}/build"
 BIN_DIR="${BUILD_DIR}/bin"
 LOG_DIR="${ROOT_DIR}/logs"
 SOCKET_PATH="/tmp/ipc_broker.sock"
+CLOUD_MODE="${DEMO_CLOUD_MODE:-unavailable}"
 
 mkdir -p "${LOG_DIR}"
 
 cleanup() {
   echo "[init] stopping services..."
+  [[ -n "${MOCK_CLOUD_PID:-}" ]] && kill "${MOCK_CLOUD_PID}" 2>/dev/null || true
   [[ -n "${UPLOADER_PID:-}" ]] && kill "${UPLOADER_PID}" 2>/dev/null || true
   [[ -n "${CAPTURE_PID:-}" ]] && kill "${CAPTURE_PID}" 2>/dev/null || true
   [[ -n "${ANALYTICS_PID:-}" ]] && kill "${ANALYTICS_PID}" 2>/dev/null || true
@@ -27,6 +29,19 @@ cmake --build "${BUILD_DIR}" -j
 if [[ ! -x "${BIN_DIR}/broker" || ! -x "${BIN_DIR}/analytics" || ! -x "${BIN_DIR}/capture" ]]; then
   echo "[init] expected binaries are missing in ${BIN_DIR}"
   exit 1
+fi
+
+echo "[init] cloud mode: ${CLOUD_MODE}"
+if [[ "${CLOUD_MODE}" == "happy" ]]; then
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "[init] python3 is required for happy cloud mode"
+    exit 1
+  fi
+
+  echo "[init] starting mock cloud server..."
+  python3 "${ROOT_DIR}/scripts/mock_cloud_server.py" > "${LOG_DIR}/mock_cloud.log" 2>&1 &
+  MOCK_CLOUD_PID=$!
+  sleep 0.2
 fi
 
 echo "[init] starting broker..."
@@ -67,6 +82,9 @@ CAPTURE_PID=$!
 
 echo "[init] services started:"
 echo "  broker pid=${BROKER_PID}"
+if [[ -n "${MOCK_CLOUD_PID:-}" ]]; then
+  echo "  mock_cloud pid=${MOCK_CLOUD_PID}"
+fi
 if [[ -n "${UPLOADER_PID:-}" ]]; then
   echo "  uploader pid=${UPLOADER_PID}"
 fi
