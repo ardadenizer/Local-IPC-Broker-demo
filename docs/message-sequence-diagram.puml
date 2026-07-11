@@ -1,0 +1,92 @@
+@startuml
+title Demo Message Flow - Sequence Diagram
+
+autonumber
+
+participant "Capture\n(Publisher)" as Capture
+participant "Broker\n(IPC Broker)" as Broker
+participant "Analytics\n(Consumer + Publisher)" as Analytics
+participant "Uploader\n(Consumer)" as Uploader
+participant "Cloud Service\n(HTTPS API)" as Cloud
+
+== Connection Phase ==
+
+Capture -> Broker : CONNECT
+Broker --> Capture : CONNECTED
+
+Analytics -> Broker : CONNECT
+Broker --> Analytics : CONNECTED
+Analytics -> Broker : SUBSCRIBE\nmotion.events
+Broker --> Analytics : SUBSCRIBED
+
+Uploader -> Broker : CONNECT
+Broker --> Uploader : CONNECTED
+Uploader -> Broker : SUBSCRIBE\nanalytics.alerts
+Broker --> Uploader : SUBSCRIBED
+
+== Motion Event ==
+
+Capture -> Broker : PUBLISH\nTopic: motion.events\nQoS 0 / QoS 1
+
+note right of Broker
+Validate JSON
+Validate schema
+Lookup topic
+Enqueue message
+end note
+
+Broker -> Analytics : DELIVER\nmotion.events
+
+Analytics -> Analytics : Process motion
+
+Analytics --> Broker : ACK(message_id)
+
+Broker --> Capture : PUBLISH_RESULT\nAccepted
+
+== Alert Generation ==
+
+Analytics -> Broker : PUBLISH\nTopic: analytics.alerts\nQoS 1
+
+note right of Broker
+Persist to disk
+Enqueue
+Mark Pending
+end note
+
+Broker -> Uploader : DELIVER\nanalytics.alerts
+
+== Cloud Upload ==
+
+Uploader -> Cloud : HTTPS POST\nUpload Alert
+
+alt Upload Successful
+
+Cloud --> Uploader : HTTP 200 OK
+
+Uploader --> Broker : ACK(message_id)
+
+note right of Broker
+Remove from queue
+Delete persisted file
+end note
+
+else Network Failure
+
+Cloud --> Uploader : Timeout / Error
+
+note right of Uploader
+Do NOT ACK
+
+Retry using
+exponential backoff
+end note
+
+note right of Broker
+QoS1 message
+remains pending
+until ACK
+end note
+
+end
+
+@enduml

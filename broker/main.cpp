@@ -10,7 +10,8 @@ int main()
   const std::string incoming = R"({
         "version": 1,
         "type": "publish",
-        "message_id": "motion-1",
+      "message_id": "motion-001",
+      "timestamp": 1720000000,
         "topic": "motion.events",
         "qos": 0,
         "client_id": "capture",
@@ -35,6 +36,9 @@ int main()
 
     std::cout << "[broker] received from: "
               << message->clientId << std::endl;
+
+        std::cout << "[broker] received timestamp: "
+                            << message->timestamp << std::endl;
 
   return 0;
 }

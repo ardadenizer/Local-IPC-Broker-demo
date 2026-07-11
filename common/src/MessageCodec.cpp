@@ -91,6 +91,12 @@ namespace messaging
                         return false;
                     }
 
+                    if (message.timestamp == 0)
+                    {
+                        error = "timestamp is required";
+                        return false;
+                    }
+
                     if (message.topic.empty())
                     {
                         error = "topic is required";
@@ -120,6 +126,7 @@ namespace messaging
             {"version", message.version},
             {"type", toString(message.type)},
             {"message_id", message.messageId},
+            {"timestamp", message.timestamp},
             {"topic", message.topic},
             {"qos", static_cast<std::uint8_t>(message.qos)},
             {"client_id", message.clientId},
@@ -164,6 +171,7 @@ namespace messaging
                 .version = json.at("version").get<std::uint32_t>(),
                 .type = *type,
                 .messageId = json.value("message_id", ""),
+                .timestamp = json.value("timestamp", static_cast<std::uint64_t>(0)),
                 .topic = json.value("topic", ""),
                 .qos = static_cast<QoS>(qosValue),
                 .clientId = json.at("client_id").get<std::string>(),

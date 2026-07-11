@@ -12,7 +12,8 @@ int main()
     messaging::Message motionEvent{
         .version = 1,
         .type = messaging::MessageType::Publish,
-        .messageId = "motion-1",
+        .messageId = "motion-001",
+        .timestamp = 1720000000,
         .topic = std::string{messaging::topics::MotionEvents},
         .qos = messaging::QoS::AtMostOnce,
         .clientId = "capture",

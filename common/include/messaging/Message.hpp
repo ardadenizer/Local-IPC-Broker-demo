@@ -31,6 +31,9 @@ namespace messaging
         // Required for publish, deliver and ack messages.
         std::string messageId{};
 
+        // Unix timestamp in seconds for publish and deliver messages.
+        std::uint64_t timestamp{};
+
         // Required for subscribe, publish and deliver messages.
         std::string topic{};
 
