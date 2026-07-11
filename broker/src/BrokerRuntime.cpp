@@ -7,6 +7,7 @@
 #include <cstring>
 #include <fcntl.h>
 #include <algorithm>
+#include <fstream>
 #include <iostream>
 #include <poll.h>
 #include <sstream>
@@ -384,7 +385,11 @@ void BrokerRuntime::handlePublish(int clientFd, const messaging::Message& messag
             continue;
         }
 
-        enqueueMessage(subscriberFd, deliver);
+        const bool queued = enqueueMessage(subscriberFd, deliver);
+        if (queued)
+        {
+            persistQoS1UntilAck(deliver, subscriberFd);
+        }
     }
 
     std::cout << "[broker] publish routed topic=" << message.topic
@@ -392,17 +397,17 @@ void BrokerRuntime::handlePublish(int clientFd, const messaging::Message& messag
     logBrokerState("after publish route");
 }
 
-void BrokerRuntime::handleAck(int /*clientFd*/, const messaging::Message& /*message*/)
+void BrokerRuntime::handleAck(int /*clientFd*/, const messaging::Message& message)
 {
-    // ACK tracking/retry semantics are intentionally deferred to the next milestone.
+    acknowledgeQoS1Message(message);
 }
 
-void BrokerRuntime::enqueueMessage(int clientFd, const messaging::Message& message)
+bool BrokerRuntime::enqueueMessage(int clientFd, const messaging::Message& message)
 {
     const auto outIt = outboundFrames_.find(clientFd);
     if (outIt == outboundFrames_.end())
     {
-        return;
+        return false;
     }
 
     auto& queue = outIt->second;
@@ -422,13 +427,80 @@ void BrokerRuntime::enqueueMessage(int clientFd, const messaging::Message& messa
                       << clientLabel(clientFd)
                       << " topic=" << message.topic
                       << " max_depth=" << MaxQueueDepthPerClient << '\n';
-            return;
+            return false;
         }
     }
 
     std::string frame = messaging::MessageCodec::serialize(message);
     frame.push_back('\n');
     queue.push_back(std::move(frame));
+    return true;
+}
+
+void BrokerRuntime::persistQoS1UntilAck(const messaging::Message& message, int subscriberFd)
+{
+    if (message.qos != messaging::QoS::AtLeastOnce)
+    {
+        return;
+    }
+
+    const auto idIt = clientIds_.find(subscriberFd);
+    if (idIt == clientIds_.end() || idIt->second.empty())
+    {
+        std::cerr << "[broker] qos=1 persistence skipped, subscriber client_id unknown fd="
+                  << subscriberFd << " message_id=" << message.messageId << '\n';
+        return;
+    }
+
+    const std::string key = pendingAckKey(message.topic, message.messageId);
+    const bool isNewEntry = (pendingQoS1Records_.find(key) == pendingQoS1Records_.end());
+    pendingQoS1Records_[key] = messaging::MessageCodec::serialize(message);
+    flushQoS1StoreToDisk();
+
+    if (isNewEntry)
+    {
+        std::cout << "[broker] qos=1 persisted awaiting_ack key=" << key
+                  << " subscriber=" << idIt->second
+                  << " pending_count=" << pendingQoS1Records_.size() << '\n';
+    }
+}
+
+void BrokerRuntime::acknowledgeQoS1Message(const messaging::Message& message)
+{
+    const std::string key = pendingAckKey(message.topic, message.messageId);
+    const std::size_t erased = pendingQoS1Records_.erase(key);
+
+    if (erased > 0)
+    {
+        flushQoS1StoreToDisk();
+        std::cout << "[broker] qos=1 ack received key=" << key
+                  << " pending_count=" << pendingQoS1Records_.size() << '\n';
+        return;
+    }
+
+    std::cout << "[broker] ack received with no pending qos=1 entry key=" << key << '\n';
+}
+
+void BrokerRuntime::flushQoS1StoreToDisk() const
+{
+    std::ofstream out{qos1StorePath_, std::ios::trunc};
+    if (!out)
+    {
+        std::cerr << "[broker] failed to open qos=1 store path=" << qos1StorePath_ << '\n';
+        return;
+    }
+
+    for (const auto& [_, recordLine] : pendingQoS1Records_)
+    {
+        out << recordLine << '\n';
+    }
+}
+
+std::string BrokerRuntime::pendingAckKey(std::string_view topic, std::string_view messageId) const
+{
+    std::ostringstream output;
+    output << topic << "|" << messageId;
+    return output.str();
 }
 
 std::string BrokerRuntime::formatConnectedClients() const
