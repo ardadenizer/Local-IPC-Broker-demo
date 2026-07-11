@@ -59,4 +59,4 @@ echo "  analytics pid=${ANALYTICS_PID}"
 echo "  capture pid=${CAPTURE_PID}"
 echo "[init] logs at ${LOG_DIR}"
 
-wait "${CAPTURE_PID}"
+wait "${CAPTURE_PID}" "${ANALYTICS_PID}"

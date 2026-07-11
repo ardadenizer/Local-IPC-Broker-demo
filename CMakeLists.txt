@@ -55,6 +55,8 @@ add_ipc_app(
     broker
     ${BROKER_ROOT}/broker/src/main.cpp
     ${BROKER_ROOT}/broker/src/UnixSocketServer.cpp
+    ${BROKER_ROOT}/broker/src/BrokerRuntime.cpp
+    ${BROKER_ROOT}/broker/src/MessageDispatcher.cpp
 )
 target_include_directories(broker PRIVATE ${BROKER_INCLUDE_DIR})
 
