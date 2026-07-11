@@ -1,11 +1,15 @@
 # Project Description:
-A simple Local (IPC Based) broker implementation that is intended to be deployed strictly on Linux for resource constrained embedded devices.
 
-## Processes:
-- broker: routes messages
-- capture: publishes motion events
-- analytics: consumes motion, publishes alerts
-- uploader: consumes alert and simulates cloud upload
+This project is a Linux-only local IPC broker demo for resource-constrained embedded systems. It models a small event pipeline where independent processes communicate through a broker over Unix domain sockets using newline-delimited JSON messages.
+
+The demo focuses on practical messaging concerns that usually appear in real systems:
+- brokered pub/sub instead of direct process-to-process coupling
+- continuous event streaming from producers to consumers
+- differentiated QoS handling for volatile versus important events
+- disk persistence for QoS 1 messages until ACK is received
+- an optional happy-path mock cloud mode to demonstrate end-to-end upload and acknowledgement flow
+
+In the current flow, `capture` publishes motion events, `analytics` subscribes to them and emits alert decisions only for motion-detected frames, and `uploader` consumes those alerts and attempts to forward them to a cloud endpoint.
 
 ## Message Format
 
