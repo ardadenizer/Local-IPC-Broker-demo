@@ -19,6 +19,9 @@ public:
     int acceptClient() const;
 
     [[nodiscard]]
+    int listeningFd() const noexcept;
+
+    [[nodiscard]]
     static bool receiveMessage(int clientFd, std::string& output);
 
 private:

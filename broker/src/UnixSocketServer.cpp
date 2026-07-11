@@ -87,6 +87,11 @@ int UnixSocketServer::acceptClient() const
             return clientFd;
         }
 
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
+        {
+            return -1;
+        }
+
         if (errno != EINTR)
         {
             std::cerr << "[broker] accept failed: "
@@ -95,6 +100,11 @@ int UnixSocketServer::acceptClient() const
             return -1;
         }
     }
+}
+
+int UnixSocketServer::listeningFd() const noexcept
+{
+    return serverFd_;
 }
 
 bool UnixSocketServer::receiveMessage(

@@ -58,9 +58,7 @@ add_ipc_app(
 )
 target_include_directories(broker PRIVATE ${BROKER_INCLUDE_DIR})
 
-add_ipc_app(
-    capture
-    ${BROKER_ROOT}/capture/src/main.cpp
+add_ipc_app(capture ${BROKER_ROOT}/capture/src/main.cpp
 )
 add_ipc_app(analytics ${BROKER_ROOT}/analytics/main.cpp)
 
